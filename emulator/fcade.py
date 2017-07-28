@@ -446,6 +446,7 @@ def main():
 
 	args = sys.argv[1:]
 	logging.debug("Args: %s" % args)
+	server='b.x90.es'
 
 	params=''
 	if len(args)>0:
