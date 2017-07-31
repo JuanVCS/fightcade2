@@ -495,6 +495,13 @@ def main():
 		logging.debug("Killing emulator: %s" % params)
 		killFCadeFBA()
 		time.sleep(2)
+	elif params.startswith('fcade://play/'):
+		logging.debug("Playing: %s" % params)
+		try:
+			game=params.split('/')[3]
+			start_fba([game, '-w'])
+		except:
+			pass
 	else:
 		start_fba(args)
 
