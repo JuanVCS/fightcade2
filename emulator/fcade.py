@@ -502,6 +502,22 @@ def main():
 			start_fba([game, '-w'])
 		except:
 			pass
+	elif params.startswith('fcade://direct/'):
+		# fcade://direct/<game>/<ip>/<side>
+		logging.debug("Direct: %s" % params)
+		try:
+			game=params.split('/')[3]
+			ip=params.split('/')[4]
+			side=params.split('/')[5]
+			if (side==0):
+				port1=6000
+				port2=6001
+			else:
+				port1=6001
+				port2=6000
+			start_fba(['quark:direct,'+game+','+str(port1)+','+str(ip)+','+str(port2)+','+str(side), '-w'])
+		except:
+			pass
 	else:
 		start_fba(args)
 
@@ -511,8 +527,8 @@ if __name__ == "__main__":
 	errorlog = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "fcade-errors.log")
 
 	try:
-		loglevel=logging.DEBUG
-		#loglevel=logging.INFO
+		#loglevel=logging.DEBUG
+		loglevel=logging.INFO
 		logging.basicConfig(filename=log, filemode='w', level=loglevel, format='%(asctime)s:%(levelname)s:%(message)s')
 		main()
 

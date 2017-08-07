@@ -1,6 +1,5 @@
 {
-  "check-latency.sh": "3aa065122ebe5c809de5da7eafb1109acdc3a8107e23e3f2166f7870d9ef768a", 
-  "fcade.exe": "43b27c21900b6b767e2231f0054dcf5d90c5e9d328b7e841cff3b44541e691ad",
-  "fcade.py": "2a5ee3226f05d9f48505faed62ddbb55df3e600d3094a9ba41bae661035a4a56",
+  "fcade.exe": "a3a8a442479d8ada4f91b60018c3e219fcd4fbd2fa24953722ea2cebed5d8912", 
+  "fcade.py": "bb0211cf4f7c5e1d349c1ef2db155e5eb49d5a793d6042bdf54809ea3f3f9ab0", 
   "fcade.sh": "68928b23626ee8deaac5b251e6d8cd61c52871aac357ff8ae33d6f9be4b2fa22"
 }
