@@ -135,18 +135,6 @@ def puncher(sock, remote_host, port):
 	return remote_token != "_", remote_host, port
 
 
-def check_latency(ip):
-
-	checker = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "check-latency.sh")
-	p1 = Popen([checker, ip, '2>&1'],stdout=PIPE)
-	latency = p1.communicate()[0].strip()
-	try:
-		ping = int(latency)
-	except ValueError:
-		ping = 150
-	return ping
-
-
 def udp_proxy(server,args,q):
 
 	logging.debug("UdpProxy: %s" % args)
@@ -276,22 +264,6 @@ def udp_proxy(server,args,q):
 
 	if port!=target[1]:
 		logging.info("Changing remote port from %d to %d." % (port, target[1]))
-
-	# hook for changing the smoothing setting dynamically
-	if (args[0][-1] == 'a'):
-		logging.debug("Checking ping for ip: %s " % target[0])
-		latency = check_latency(target[0])
-		smoothing=0
-		if ( latency > 130 ):
-			smoothing=1
-		if ( latency > 220 ):
-			smoothing=2
-		if ( latency > 300 ):
-			smoothing=3
-		if ( latency > 380 ):
-			smoothing=4
-		logging.info("latency: %d - Smoothing: %d " % (latency, smoothing))
-		args[0] = args[0][:-1]+str(smoothing)
 
 	fba_pid=start_fba(args)
 	q.put(fba_pid)
