@@ -37,6 +37,23 @@ import re
 import urllib
 import urllib2
 
+emulators = {
+	'fba': {
+		'name': 'fcadefba',
+		'exe': 'fba/fcadefba.exe',
+		'parameters': '-w'
+	},
+	'snes9x': {
+		'name': 'fcadesnes9x',
+		'exe': 'snes9x/fcadesnes9x.exe',
+		'parameters': ''
+	}
+}
+
+active_emulator = None
+
+rom_prefixes_to_delete = ['snes_']
+
 def bytes2addr( bytes ):
 	"""Convert a hash to an address pair."""
 	if len(bytes) != 6:
@@ -46,22 +63,22 @@ def bytes2addr( bytes ):
 	return host, port
 
 
-def start_fba(args):
-
-	FBA="fcadefba.exe"
+def start_emulator(args):
+	global active_emulator
+	exe_file = active_emulator["exe"]
 
 	# try to guess install directory:
 	dirtest = os.path.abspath(os.path.dirname(sys.argv[0]))
-	if not os.path.isfile(os.path.join(dirtest,FBA)):
+	if not os.path.isfile(os.path.join(dirtest,exe_file)):
 		dirtest = os.path.dirname(os.path.abspath(__file__))
-	if not os.path.isfile(os.path.join(dirtest,FBA)):
+	if not os.path.isfile(os.path.join(dirtest,exe_file)):
 		dirtest = os.getcwd()
-	if not os.path.isfile(os.path.join(dirtest,FBA)):
-		print >>sys.stderr, "Can't find", FBA
-		logging.info("Can't find %s" % FBA)
+	if not os.path.isfile(os.path.join(dirtest,exe_file)):
+		print >>sys.stderr, "Can't find", exe_file
+		logging.info("Can't find %s" % exe_file)
 		os._exit(1)
 
-	FBA=os.path.join(dirtest,FBA)
+	file_path = os.path.join(dirtest,exe_file)
 
 	# try to find wine
 	wine=os.path.join(dirtest,"../../Resources/usr/bin/wine")
@@ -71,17 +88,20 @@ def start_fba(args):
 		wine='/usr/local/bin/wine'
 	if not os.path.isfile(wine):
 		# assume we are on windows
-		args.insert(0, FBA)
+		args.insert(0, file_path)
 	else:
-		args.insert(0, FBA)
+		args.insert(0, file_path)
 		args.insert(0, wine)
+
+	# remove empty arguments
+	args = [a for a in args if a != '']
 
 	try:
 		logging.debug("RUNNING %s" % args)
 		p = Popen(args)
 	except OSError:
-		print >>sys.stderr, "Can't execute", FBA
-		logging.info("Can't execute %s" % FBA)
+		print >>sys.stderr, "Can't execute", file_path
+		logging.info("Can't execute %s" % file_path)
 		os._exit(1)
 	return p
 
@@ -136,6 +156,7 @@ def puncher(sock, remote_host, port):
 
 
 def udp_proxy(server,args,q):
+	global active_emulator
 
 	logging.debug("UdpProxy: %s" % args)
 
@@ -166,8 +187,8 @@ def udp_proxy(server,args,q):
 	except Exception, e:
 		logging.info("Error creating udp socket. Using ports.")
 		logging.info("ERROR: %s" % (repr(e)))
-		fba_pid=start_fba(args)
-		q.put(fba_pid)
+		emulator_pid=start_emulator(args)
+		q.put(emulator_pid)
 		sockfd.sendto( "useports/"+quark, master)
 		return
 
@@ -179,10 +200,10 @@ def udp_proxy(server,args,q):
 		bindok+=1
 
 	if bindok>=2:
-		logging.info("WARNING: Another instance of fcadefba.exe seems to be running.")
+		logging.info("WARNING: Another instance of %s seems to be running." % (active_emulator["name"]))
 
 		# en debug no matar otros, para probar en local
-		killFCadeFBA()
+		killFCadeEmulator()
 		time.sleep(2)
 
 	try:
@@ -191,8 +212,8 @@ def udp_proxy(server,args,q):
 	except Exception, e:
 		logging.info("Error sending data to fightcade server. Using ports.")
 		logging.info("ERROR: %s" % (repr(e)))
-		fba_pid=start_fba(args)
-		q.put(fba_pid)
+		emulator_pid=start_emulator(args)
+		q.put(emulator_pid)
 		sockfd.sendto( "useports/"+quark, master)
 		return
 
@@ -206,8 +227,8 @@ def udp_proxy(server,args,q):
 	except socket.error:
 		logging.info("Error receiving request from master. Using ports.")
 		sockfd.sendto( "useports/"+quark, master)
-		fba_pid=start_fba(args)
-		q.put(fba_pid)
+		emulator_pid=start_emulator(args)
+		q.put(emulator_pid)
 		return
 
 	if data != "ok "+quark:
@@ -222,14 +243,14 @@ def udp_proxy(server,args,q):
 	except socket.timeout:
 		logging.info("Timeout waiting for peer's address. Using ports.")
 		sockfd.sendto( "useports/"+quark, master)
-		fba_pid=start_fba(args)
-		q.put(fba_pid)
+		emulator_pid=start_emulator(args)
+		q.put(emulator_pid)
 		return
 	except socket.error:
 		logging.info("Error getting peer address. Using ports.")
 		sockfd.sendto( "useports/"+quark, master)
-		fba_pid=start_fba(args)
-		q.put(fba_pid)
+		emulator_pid=start_emulator(args)
+		q.put(emulator_pid)
 		return
 
 	target = bytes2addr(data)
@@ -265,8 +286,8 @@ def udp_proxy(server,args,q):
 	if port!=target[1]:
 		logging.info("Changing remote port from %d to %d." % (port, target[1]))
 
-	fba_pid=start_fba(args)
-	q.put(fba_pid)
+	emulator_pid=start_emulator(args)
+	q.put(emulator_pid)
 
 	if not punch_ok:
 		return
@@ -333,35 +354,37 @@ def udp_proxy(server,args,q):
 				l_sockfd.close()
 				os._exit(0)
 
-def killFCadeFBA():
+def killFCadeEmulator():
+	global active_emulator
+
 	if platform.system()=="Windows":
 		try:
-			args = ['taskkill', '/f', '/im', 'fcadefba.exe']
+			args = ['taskkill', '/f', '/im', active_emulator['exe']]
 			Popen(args, shell=True)
-			args = ['tskill', 'fcadefba', '/a']
+			args = ['tskill', active_emulator['name'], '/a']
 			Popen(args, shell=True)
 		except:
-			logging.info("Failed to kill fcadefba")
+			logging.info("Failed to kill %s" %(active_emulator['name']))
 	if platform.system()=="Darwin":
 		try:
 			devnull = open(os.devnull, 'w')
-			args = ['pkill', '-f', 'fcadefba.exe.*quark:served']
+			args = ['pkill', '-f', '%s.*quark:served' %(active_emulator['exe'])]
 			Popen(args, stdout=devnull, stderr=devnull)
 			args = ['../../Resources/usr/bin/wineserver', '-k']
 			Popen(args, stdout=devnull, stderr=devnull)
 			devnull.close()
 		except:
-			logging.info("Failed to kill fcadefba")
+			logging.info("Failed to kill %s" %(active_emulator['name']))
 	if platform.system()=="Linux":
 		try:
 			devnull = open(os.devnull, 'w')
-			args = ['pkill', '-f', 'fcadefba.exe.*quark:served']
+			args = ['pkill', '-f', '%s.*quark:served' %(active_emulator['exe'])]
 			Popen(args, stdout=devnull, stderr=devnull)
 			args = ['wineserver', '-k']
 			Popen(args, stdout=devnull, stderr=devnull)
 			devnull.close()
 		except:
-			logging.info("Failed to kill fcadefba")
+			logging.info("Failed to kill %s" %(active_emulator['name']))
 
 
 
@@ -388,15 +411,15 @@ def registerUriHandler():
 
 def process_checker(q):
 	time.sleep(15)
-	fba_p=q.get()
-	logging.info("fcadefba pid: %d" % int(fba_p.pid))
+	emulator_p=q.get()
+	logging.info("emulator pid: %d" % int(emulator_p.pid))
 
 	while True:
 		time.sleep(5)
-		fba_status=fba_p.poll()
+		emulator_status=emulator_p.poll()
 		#print "FBA STATUS:", str(fba_status)
 		#logging.debug("FBA STATUS: %s" % str(fba_status))
-		if fba_status!=None:
+		if emulator_status!=None:
 			logging.info("Killing process")
 			os._exit(0)
 
@@ -406,15 +429,22 @@ def writeServerToDLL(server):
 	try:
 		dll = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "ggponet.dll")
 		f = open(dll, "r+b")
-		f.seek(0x32152) 
+		f.seek(0x32152)
 		f.write(server)
 		f.write('\x00')
 		f.close()
 	except:
 		logging.info("Can't write server to ggponet.dll")
 
+def getRomFilename(name):
+	for prefix in rom_prefixes_to_delete:
+		if name.find(prefix) == 0:
+			return name[len(prefix):]
+
+	return name
 
 def main():
+	global active_emulator
 
 	args = sys.argv[1:]
 	logging.debug("Args: %s" % args)
@@ -424,36 +454,40 @@ def main():
 	if len(args)>0:
 		params=args[0]
 
-	num_params = len(params.split('/'))
+	parameters = params.split('/')
+	num_params = len(parameters)
 
 	if platform.system()=="Windows":
 		registerUriHandler()
 
-	if params.startswith('fcade://served/') and num_params >=5:
+	if params.startswith('fcade://served/') and num_params >=6:
 		logging.debug("Served: %s" % params)
 		try:
-			game=params.split('/')[3]
-			quark=params.split('/')[4]
-			if (num_params > 5):
-				server=params.split('/')[5]
+			active_emulator=emulators[parameters[3]]
+			game=getRomFilename(parameters[4])
+			quark=parameters[5]
+			if (num_params > 6):
+				server=parameters[6]
 				writeServerToDLL(server)
 			q = Queue.Queue()
 			t = threading.Thread(target=process_checker, args=(q,))
 			t.setDaemon(True)
 			t.start()
-			udp_proxy(server,['quark:served,'+game+','+quark, '-w'],q)
+			time.sleep(2)
+			udp_proxy(server,['quark:served,'+game+','+quark, active_emulator['parameters']],q)
 			t.join()
 		except:
 			pass
 	elif params.startswith('fcade://stream/') and num_params >=5:
 		logging.debug("Stream: %s" % params)
 		try:
-			game=params.split('/')[3]
-			quark=params.split('/')[4]
-			if (num_params > 5):
-				server=params.split('/')[5]
+			active_emulator=emulators[parameters[3]]
+			game=getRomFilename(params.split('/')[4])
+			quark=params.split('/')[5]
+			if (num_params > 6):
+				server=params.split('/')[6]
 				writeServerToDLL(server)
-			start_fba(['quark:stream,'+game+','+quark, '-w'])
+			start_emulator(['quark:stream,'+game+','+quark, active_emulator['parameters']])
 		except:
 			pass
 	elif params.startswith('fcade://server/'):
@@ -464,46 +498,50 @@ def main():
 		except:
 			pass
 	elif params.startswith('fcade://killemu'):
-		logging.debug("Killing emulator: %s" % params)
-		killFCadeFBA()
+		logging.debug("Killing emulator")
+		active_emulator=emulators['fba']
+		killFCadeEmulator()
+		active_emulator=emulators['snes9x']
+		killFCadeEmulator()
 		time.sleep(2)
 	elif params.startswith('fcade://play/'):
 		logging.debug("Playing: %s" % params)
 		try:
-			game=params.split('/')[3]
-			start_fba([game, '-w'])
+			active_emulator=emulators[parameters[3]]
+			game=getRomFilename(parameters[4])
+			start_emulator([game, active_emulator['parameters']])
 		except:
 			pass
 	elif params.startswith('fcade://direct/'):
-		# fcade://direct/<game>/<ip>/<side>
+		# fcade://direct/<emu>/<game>/<ip>/<side>
 		logging.debug("Direct: %s" % params)
 		try:
-			game=params.split('/')[3]
-			ip=params.split('/')[4]
-			side=params.split('/')[5]
+			active_emulator=emulators[parameters[3]]
+			game=getRomFilename(params.split('/')[4])
+			ip=params.split('/')[5]
+			side=params.split('/')[6]
 			if (side==0):
 				port1=6000
 				port2=6001
 			else:
 				port1=6001
 				port2=6000
-			start_fba(['quark:direct,'+game+','+str(port1)+','+str(ip)+','+str(port2)+','+str(side), '-w'])
+			start_emulator(['quark:direct,'+game+','+str(port1)+','+str(ip)+','+str(port2)+','+str(side), active_emulator['parameters']])
 		except:
 			pass
 	else:
-		start_fba(args)
+		active_emulator=emulators['fba']
+		start_emulator(args)
 
 if __name__ == "__main__":
 
 	log = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "fcade.log")
 	errorlog = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "fcade-errors.log")
-
 	try:
 		#loglevel=logging.DEBUG
 		loglevel=logging.INFO
 		logging.basicConfig(filename=log, filemode='w', level=loglevel, format='%(asctime)s:%(levelname)s:%(message)s')
 		main()
-
 	except:
 		traceback.print_exc(file=open(errorlog,"w"))
 		os._exit(1)
