@@ -357,9 +357,11 @@ def udp_proxy(server,args,q):
 def killFCadeEmulator():
 	global active_emulator
 
+	process_name = active_emulator['exe'][active_emulator['exe'].find('/') + 1:]
+
 	if platform.system()=="Windows":
 		try:
-			args = ['taskkill', '/f', '/im', active_emulator['exe']]
+			args = ['taskkill', '/f', '/im', process_name]
 			Popen(args, shell=True)
 			args = ['tskill', active_emulator['name'], '/a']
 			Popen(args, shell=True)
@@ -368,7 +370,7 @@ def killFCadeEmulator():
 	if platform.system()=="Darwin":
 		try:
 			devnull = open(os.devnull, 'w')
-			args = ['pkill', '-f', '%s.*quark:served' %(active_emulator['exe'])]
+			args = ['pkill', '-f', '%s.*quark:served' %(process_name)]
 			Popen(args, stdout=devnull, stderr=devnull)
 			args = ['../../Resources/usr/bin/wineserver', '-k']
 			Popen(args, stdout=devnull, stderr=devnull)
@@ -378,7 +380,7 @@ def killFCadeEmulator():
 	if platform.system()=="Linux":
 		try:
 			devnull = open(os.devnull, 'w')
-			args = ['pkill', '-f', '%s.*quark:served' %(active_emulator['exe'])]
+			args = ['pkill', '-f', '%s.*quark:served' %(process_name)]
 			Popen(args, stdout=devnull, stderr=devnull)
 			args = ['wineserver', '-k']
 			Popen(args, stdout=devnull, stderr=devnull)
@@ -424,18 +426,6 @@ def process_checker(q):
 			os._exit(0)
 
 
-def writeServerToDLL(server):
-	logging.debug("Writing GGPO server host to DLL: %s" % server)
-	try:
-		dll = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "ggponet.dll")
-		f = open(dll, "r+b")
-		f.seek(0x32152)
-		f.write(server)
-		f.write('\x00')
-		f.close()
-	except:
-		logging.info("Can't write server to ggponet.dll")
-
 def getRomFilename(name):
 	for prefix in rom_prefixes_to_delete:
 		if name.find(prefix) == 0:
@@ -466,9 +456,6 @@ def main():
 			active_emulator=emulators[parameters[3]]
 			game=getRomFilename(parameters[4])
 			quark=parameters[5]
-			if (num_params > 6):
-				server=parameters[6]
-				writeServerToDLL(server)
 			q = Queue.Queue()
 			t = threading.Thread(target=process_checker, args=(q,))
 			t.setDaemon(True)
@@ -484,17 +471,7 @@ def main():
 			active_emulator=emulators[parameters[3]]
 			game=getRomFilename(params.split('/')[4])
 			quark=params.split('/')[5]
-			if (num_params > 6):
-				server=params.split('/')[6]
-				writeServerToDLL(server)
 			start_emulator(['quark:stream,'+game+','+quark, active_emulator['parameters']])
-		except:
-			pass
-	elif params.startswith('fcade://server/'):
-		logging.debug("Writing server to DLL: %s" % params)
-		try:
-			server=params.split('/')[3]
-			writeServerToDLL(server)
 		except:
 			pass
 	elif params.startswith('fcade://killemu'):
