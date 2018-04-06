@@ -134,7 +134,7 @@ def puncher(sock, remote_host, port):
 					port=addr[1]
 					remote_host=addr[0]
 			logging.debug("Recv: %r" % data)
-			if remote_token == "_":
+			if remote_token == "_" and data.split()[0].startswith("0."):
 				remote_token = data.split()[0]
 				logging.debug("Remote_token is now %s" % remote_token)
 			if len(data.split()) == 3:
@@ -253,7 +253,13 @@ def udp_proxy(server,args,q):
 		q.put(emulator_pid)
 		return
 
-	target = bytes2addr(data)
+	if (data.startswith("0.")):
+		logging.info ("target = addr")
+		target = addr
+	else:
+		logging.info ("target = data")
+		target = bytes2addr(data)
+
 	logging.debug("Connected to %s:%d" % target)
 
 	punch_ok, r_addr, r_port, = puncher(sockfd, target[0], target[1])
