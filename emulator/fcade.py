@@ -512,6 +512,17 @@ def main():
 			start_emulator(['quark:direct,'+game+','+str(port1)+','+str(ip)+','+str(port2)+','+str(side), active_emulator['parameters']])
 		except:
 			pass
+	elif params.startswith('fcade://autoupdate'):
+		logging.info("AutoUpdate launched")
+		if platform.system()=="Windows":
+			updater = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "..", "Fightcade2.exe")
+		else:
+			updater = os.path.join(os.path.abspath(os.path.dirname(sys.argv[0])), "..", "Fightcade2.sh")
+		try:
+			Popen([updater])
+		except:
+			logging.info("AUTOUPDATE: Can't execute %s" % updater)
+
 	else:
 		active_emulator=emulators['fba']
 		start_emulator(args)
