@@ -65,6 +65,8 @@ Encoding=UTF-8
 Name=FightCade Replay
 Exec=${THIS_SCRIPT_DIR}/fcade.sh %U
 Terminal=false
+NoDisplay=true
+StartupNotify=false
 MimeType=x-scheme-handler/fcade
 " > ~/.local/share/applications/fcade-quark.desktop
 	xdg-mime default fcade-quark.desktop x-scheme-handler/fcade
